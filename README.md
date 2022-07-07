@@ -36,7 +36,22 @@ or you can install the [official app](https://apps.apple.com/it/app/wireguard/id
 Windows
 -------
 
-This role is tested with Windows 10 Professionnal via a winrm connection. The installer is download directly from WireGuard web site (or a source in the variable `wireguard_windows_source`. The installation is fully automatic, in the folder `C:\Program Files\WireGuard`. The DPAPI files with the existing wireguard configuration can't be read in this version, configuration is recreated each time one the Windows side. Note that the tunnel name in the WireGuard GUI is the name of the `wireguard_interface`.
+This role is tested with Windows 10 Professionnal via a `winrm` connection. The installer is download directly from WireGuard web site (or a source in the variable `wireguard_windows_source`. The installation is fully automatic, in the folder `C:\Program Files\WireGuard`. The DPAPI files with the existing WireGuard configuration can't be read in this version, configuration is recreated each time on the Windows side. Note that the tunnel name in the WireGuard GUI is the name of the `wireguard_interface`.
+
+Exemple of configuration add in inventory file, for a Windows host :
+```yaml
+hosts:
+  MyWindowsLaptop:
+    ansible_host: 192.168.1.100
+    ansible_user: "mylogin"   # On cmd.exe, run `echo %USERNAME%`
+    ansible_password: "mypassword"
+    ansible_connection: winrm
+    ansible_winrm_transport: basic
+    ansible_winrm_server_cert_validation: ignore
+    # Become is necessary to delete the dpapi file (the wireguard config file)
+    ansible_become_method: runas
+    ansible_become_user: SYSTEM
+```
 
 Versions
 --------

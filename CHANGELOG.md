@@ -5,6 +5,11 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 # Changelog
 
+## 9.4.0
+
+- add `Windows` support.
+- add `wireguard_windows_source` variable. This is a link to the WireGuard installer.
+
 ## 9.3.0
 
 - add support for Ubuntu 22.04 (Jammy Jellyfish)

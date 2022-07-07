@@ -31,7 +31,9 @@
   failed_when: wireguard__register_module_enabled is failure
   tags:
     - wg-install
-  when: not ansible_os_family == 'Darwin' and not ansible_os_family == 'Windows'
+  when:
+    - not ansible_os_family == 'Darwin'
+    - not ansible_os_family == 'Windows'
 
 - name: Set default for WireGuard interface restart behavior
   ansible.builtin.set_fact:
@@ -46,21 +48,21 @@
   block:
     - name: Get available wg subcommands
       ansible.builtin.command: "wg --help"
-      register: wireguard__register_subcommands
+      register: wireguard__register_subcommands_unix
       changed_when: false
       check_mode: false
       when: not ansible_os_family == 'Windows'
 
     - name: Get wg subcommands (Windows)
       ansible.builtin.win_command: "wg --help"
-      register: wireguard__register_subcommands
+      register: wireguard__register_subcommands_windows
       changed_when: false
       check_mode: false
       when: ansible_os_family == 'Windows'
 
     - name: Check if wg syncconf subcommand is available
       ansible.builtin.set_fact:
-        wireguard__syncconf_avail: "{{ 'syncconf:' in wireguard__register_subcommands.stdout }}"
+        wireguard__syncconf_avail: "{{ 'syncconf:' in ((wireguard__register_subcommands_unix.stdout | default('')) + (wireguard__register_subcommands_windows.stdout | default(''))) }}"
 
     - name: wg syncconf subcommand available
       ansible.builtin.debug:
@@ -88,7 +90,7 @@
 - name: Register if config/private key already exists on target host
   ansible.builtin.stat:
     path: "{{ wireguard_remote_directory }}/{{ wireguard_interface }}.conf"
-  register: wireguard__register_config_file
+  register: wireguard__register_config_file_unix
   tags:
     - wg-generate-keys
     - wg-config
@@ -98,17 +100,21 @@
   ansible.builtin.win_stat:
     path: "{{ wireguard_remote_directory }}\\{{ wireguard_interface }}.conf"
     get_checksum: no
-  register: wireguard__register_config_file
+  register: wireguard__register_config_file_windows
   tags:
     - wg-generate-keys
     - wg-config
   when: ansible_os_family == 'Windows'
 
+- name: Merge register
+  ansible.builtin.set_fact:
+    wireguard__register_config_file_stat_exists: "{{ (wireguard__register_config_file_unix.stat.exists | default(false)) or (wireguard__register_config_file_windows.stat.exists | default(false)) }}"
+
 - name: WireGuard private key handling for new keys
   block:
     - name: Generate WireGuard private key
       ansible.builtin.command: "wg genkey"
-      register: wireguard__register_private_key
+      register: wireguard__register_private_key_unix
       changed_when: false
       no_log: '{{ ansible_verbosity < 3 }}'
       tags:
@@ -117,7 +123,7 @@
 
     - name: Generate WireGuard private key (Windows)
       ansible.builtin.win_command: "wg genkey"
-      register: wireguard__register_private_key
+      register: wireguard__register_private_key_windows
       changed_when: false
       no_log: '{{ ansible_verbosity < 3 }}'
       tags:
@@ -126,12 +132,12 @@
 
     - name: Set private key fact
       ansible.builtin.set_fact:
-        wireguard_private_key: "{{ wireguard__register_private_key.stdout }}"
+        wireguard_private_key: "{{ (wireguard__register_private_key_unix.stdout | default('')) + (wireguard__register_private_key_windows.stdout | default('')) }}"
       no_log: '{{ ansible_verbosity < 3 }}'
       tags:
         - wg-generate-keys
   when:
-    - not wireguard__register_config_file.stat.exists
+    - not wireguard__register_config_file_stat_exists
     - wireguard_private_key is not defined
 
 - name: WireGuard private key handling for existing keys
@@ -152,14 +158,14 @@
       tags:
         - wg-config
   when:
-    - wireguard__register_config_file.stat.exists
+    - wireguard__register_config_file_stat_exists
     - wireguard_private_key is not defined
 
 - name: Derive WireGuard public key
   ansible.builtin.command: "wg pubkey"
   args:
     stdin: "{{ wireguard_private_key }}"
-  register: wireguard__register_public_key
+  register: wireguard__register_public_key_unix
   changed_when: false
   check_mode: false
   no_log: '{{ ansible_verbosity < 3 }}'
@@ -171,7 +177,7 @@
   ansible.builtin.win_command: "wg pubkey"
   args:
     stdin: "{{ wireguard_private_key }}"
-  register: wireguard__register_public_key
+  register: wireguard__register_public_key_windows
   changed_when: false
   check_mode: false
   no_log: '{{ ansible_verbosity < 3 }}'
@@ -181,7 +187,7 @@
 
 - name: Set public key fact
   ansible.builtin.set_fact:
-    wireguard__fact_public_key: "{{ wireguard__register_public_key.stdout }}"
+    wireguard__fact_public_key: "{{ (wireguard__register_public_key_unix.stdout | default('')) + (wireguard__register_public_key_windows.stdout | default()) }}"
   tags:
     - wg-config
 
@@ -244,4 +250,6 @@
     name: "wg-quick@{{ wireguard_interface }}"
     state: "{{ wireguard_service_state }}"
     enabled: "{{ wireguard_service_enabled }}"
-  when: not ansible_os_family == 'Darwin' and not ansible_os_family == 'Windows'
+  when:
+    - not ansible_os_family == 'Darwin'
+    - not ansible_os_family == 'Windows'
