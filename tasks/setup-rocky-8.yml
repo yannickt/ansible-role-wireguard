@@ -1,15 +1,17 @@
 ---
-# Copyright (C) 2021-2022 Robert Wimmer
+# Copyright (C) 2021-2023 Robert Wimmer
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 - name: (Rocky Linux 8) Tasks for standard kernel
+  when:
+    - wireguard_rockylinux8_installation_method == "standard"
   block:
     - name: (Rocky Linux 8) Install EPEL & ELRepo repository
       ansible.builtin.yum:
         name:
           - epel-release
           - elrepo-release
-        update_cache: true
+        update_cache: "{{ wireguard_update_cache }}"
 
     - name: (Rocky Linux 8) Ensure WireGuard DKMS package is removed
       ansible.builtin.yum:
@@ -23,10 +25,10 @@
           - "kmod-wireguard"
           - "wireguard-tools"
         state: present
-  when:
-    - wireguard_rockylinux8_installation_method == "standard"
 
 - name: (Rocky Linux 8) Tasks for non-standard kernel
+  when:
+    - wireguard_rockylinux8_installation_method == "dkms"
   block:
     - name: (Rocky Linux 8) Install jdoss/wireguard COPR repository
       community.general.copr:
@@ -38,7 +40,7 @@
       ansible.builtin.yum:
         name:
           - epel-release
-        update_cache: true
+        update_cache: "{{ wireguard_update_cache }}"
 
     - name: (Rocky Linux 8) Ensure WireGuard KMOD package is removed
       ansible.builtin.yum:
@@ -52,5 +54,3 @@
           - "wireguard-dkms"
           - "wireguard-tools"
         state: present
-  when:
-    - wireguard_rockylinux8_installation_method == "dkms"

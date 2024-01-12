@@ -1,12 +1,19 @@
 #jinja2: lstrip_blocks:"True",trim_blocks:"True"
-{# Copyright (C) 2018-2022 Robert Wimmer
+{# Copyright (C) 2018-2023 Robert Wimmer
  # SPDX-License-Identifier: GPL-3.0-or-later
  #}
 # {{ ansible_managed }}
 
 [Interface]
 # {{ inventory_hostname }}
+{% if wireguard_address is defined %}
 Address = {{ wireguard_address }}
+{% endif %}
+{% if wireguard_addresses is defined %}
+{%  for wg_addr in wireguard_addresses %}
+Address = {{ wg_addr }}
+{%  endfor %}
+{% endif %}
 PrivateKey = {{ wireguard_private_key }}
 ListenPort = {{ wireguard_port }}
 {% if wireguard_dns is defined %}
@@ -48,12 +55,23 @@ SaveConfig = {{ wireguard_save_config }}
 {%   if host != inventory_hostname %}
 
 [Peer]
-# {{ host }}
+# Name = {{ host }}
 PublicKey = {{hostvars[host].wireguard__fact_public_key}}
 {%     if hostvars[host].wireguard_allowed_ips is defined %}
 AllowedIPs = {{hostvars[host].wireguard_allowed_ips}}
 {%     else %}
+{%      if wireguard_address is defined %}
 AllowedIPs = {{ hostvars[host].wireguard_address.split('/')[0] }}/32
+{%      endif %}
+{%      if wireguard_addresses is defined %}
+{%      for wg_addr in hostvars[host].wireguard_addresses %}
+{%        if (wg_addr | ansible.utils.ipv4) %}
+AllowedIPs = {{ wg_addr.split('/')[0] }}/32
+{%        elif (wg_addr | ansible.utils.ipv6) %}
+AllowedIPs = {{ wg_addr.split('/')[0] }}/128
+{%        endif %}
+{%      endfor %}
+{%      endif %}
 {%     endif %}
 {%     if hostvars[host].wireguard_persistent_keepalive is defined %}
 PersistentKeepalive = {{hostvars[host].wireguard_persistent_keepalive}}
@@ -87,7 +105,7 @@ Endpoint = {{host}}:{{wireguard_port}}
 # Peers not managed by Ansible from "wireguard_unmanaged_peers" variable
 {% for peer in wireguard_unmanaged_peers.keys() %}
 [Peer]
-# {{ peer }}
+# Name = {{ peer }}
 PublicKey = {{ wireguard_unmanaged_peers[peer].public_key }}
 {%     if wireguard_unmanaged_peers[peer].preshared_key is defined %}
 PresharedKey = {{ wireguard_unmanaged_peers[peer].preshared_key }}
